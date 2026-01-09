@@ -1,32 +1,29 @@
 #include <iostream>
 #include "src/FrequencyCounter.h"
-#include "src/HuffmanTree.h" // Import the new engine
+#include "src/HuffmanTree.h"
 
 int main() {
-    std::string filePath = "input.txt";
-    
-    // 1. Count Frequencies (Phase 1)
+    // 1. Analyze
     FrequencyCounter counter;
-    std::map<char, int> frequencies = counter.countFrequencies(filePath);
+    auto frequencies = counter.countFrequencies("input.txt");
 
     if (frequencies.empty()) {
-        std::cout << "File is empty." << std::endl;
+        std::cout << "File is empty!" << std::endl;
         return 1;
     }
 
-    // 2. Build the Tree (Phase 2)
+    // 2. Build Tree
     HuffmanTree tree;
     tree.buildTree(frequencies);
 
-    // 3. Verify the Construction
-    // The Root Frequency should match the total characters in the file
-    HuffmanNode* root = tree.getRoot();
-    
-    if (root) {
-        std::cout << " Tree Built Successfully!" << std::endl;
-        std::cout << "Root Node Frequency: " << root->frequency << std::endl;
-    } else {
-        std::cout << " Tree Construction Failed." << std::endl;
+    // 3. Generate Codes (Phase 3)
+    tree.generateHuffmanCodes();
+    auto codes = tree.getCodes();
+
+    // 4. Print the Translation Table
+    std::cout << "--- Huffman Binary Codes ---" << std::endl;
+    for (auto const& [ch, code] : codes) {
+        std::cout << "'" << ch << "' : " << code << std::endl;
     }
 
     return 0;
