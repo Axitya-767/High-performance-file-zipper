@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <string>
+#include <map>
 
 class BitWriter {
 private:
@@ -13,16 +14,13 @@ private:
 public:
     // Constructor: Opens the file in BINARY mode
     BitWriter(const std::string& filePath);
-    
     // Destructor: Ensures file is closed properly
     ~BitWriter();
-
+    void writeHeader(const std::map<char, int>& frequencies);
     // The Magic: Takes a "0" or "1" and packs it
     void writeBit(int bit);
-    
     // Helper: Takes a whole string "101" and calls writeBit loop
     void writeCode(const std::string& code);
-    
     // Force write the remaining partial byte
     void flush();
 };

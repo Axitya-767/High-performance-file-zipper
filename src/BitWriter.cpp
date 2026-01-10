@@ -47,3 +47,22 @@ void BitWriter::flush() {
         bitCount = 0;
     }
 }
+
+void BitWriter::writeHeader(const std::map<char, int>& frequencies) {
+    // 1. Write the NUMBER of unique characters (e.g., 5)
+    // We assume the map fits in a standard integer size
+    size_t mapSize = frequencies.size();
+    outFile.write(reinterpret_cast<const char*>(&mapSize), sizeof(mapSize));
+
+    // 2. Loop through the map and write: [Character] + [Frequency]
+    for (const auto& entry : frequencies) {
+        char character = entry.first;
+        int frequency = entry.second;
+
+        // Write the character (1 byte)
+        outFile.write(&character, sizeof(character));
+
+        // Write the frequency (4 bytes) - Raw Binary
+        outFile.write(reinterpret_cast<const char*>(&frequency), sizeof(frequency));
+    }
+}

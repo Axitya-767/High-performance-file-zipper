@@ -26,8 +26,12 @@ int main() {
     
     BitWriter writer(outputFile);
     
+    // NEW: Write the "Secret Key" (Header) first!
+    writer.writeHeader(frequencies); 
+    
     // Open input file AGAIN to read char by char
     std::ifstream inFile(inputFile, std::ios::binary);
+
     char ch;
     
     while (inFile.get(ch)) {
