@@ -1,30 +1,44 @@
 #include <iostream>
+#include <fstream>
 #include "src/FrequencyCounter.h"
 #include "src/HuffmanTree.h"
+#include "src/BitWriter.h" // Import the new tool
 
 int main() {
-    // 1. Analyze
+    std::string inputFile = "input.txt";
+    std::string outputFile = "output.huff"; // The custom format!
+
+    // --- PHASE 1: Analyze ---
     FrequencyCounter counter;
-    auto frequencies = counter.countFrequencies("input.txt");
+    auto frequencies = counter.countFrequencies(inputFile);
+    if (frequencies.empty()) return 1;
 
-    if (frequencies.empty()) {
-        std::cout << "File is empty!" << std::endl;
-        return 1;
-    }
-
-    // 2. Build Tree
+    // --- PHASE 2: Build Tree ---
     HuffmanTree tree;
     tree.buildTree(frequencies);
 
-    // 3. Generate Codes (Phase 3)
+    // --- PHASE 3: Generate Codes ---
     tree.generateHuffmanCodes();
     auto codes = tree.getCodes();
 
-    // 4. Print the Translation Table
-    std::cout << "--- Huffman Binary Codes ---" << std::endl;
-    for (auto const& [ch, code] : codes) {
-        std::cout << "'" << ch << "' : " << code << std::endl;
+    // --- PHASE 4: Compress (Bit Packing) ---
+    std::cout << "Compressing to " << outputFile << "..." << std::endl;
+    
+    BitWriter writer(outputFile);
+    
+    // Open input file AGAIN to read char by char
+    std::ifstream inFile(inputFile, std::ios::binary);
+    char ch;
+    
+    while (inFile.get(ch)) {
+        // Look up the code (e.g., 'a' -> "101")
+        std::string code = codes[ch];
+        // Write it as raw bits
+        writer.writeCode(code);
     }
-
+    
+    writer.flush(); // Finish up
+    
+    std::cout << "✅ Compression Complete!" << std::endl;
     return 0;
 }
