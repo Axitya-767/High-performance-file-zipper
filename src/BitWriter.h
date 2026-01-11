@@ -1,27 +1,25 @@
 #ifndef BIT_WRITER_H
 #define BIT_WRITER_H
 
+#include <unordered_map>
 #include <fstream>
 #include <string>
-#include <map>
 
 class BitWriter {
 private:
     std::ofstream outFile;
-    unsigned char buffer; // The 8-bit container
-    int bitCount;         // How full is the container? (0-8)
+    unsigned char buffer; 
+    int bitCount;         
 
 public:
-    // Constructor: Opens the file in BINARY mode
     BitWriter(const std::string& filePath);
-    // Destructor: Ensures file is closed properly
     ~BitWriter();
-    void writeHeader(const std::map<char, int>& frequencies);
-    // The Magic: Takes a "0" or "1" and packs it
+
+    // MATCHED: Now uses unordered_map to match the .cpp
+    void writeHeader(const std::unordered_map<char, int>& frequencies);
+    
     void writeBit(int bit);
-    // Helper: Takes a whole string "101" and calls writeBit loop
     void writeCode(const std::string& code);
-    // Force write the remaining partial byte
     void flush();
 };
 

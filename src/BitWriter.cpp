@@ -1,68 +1,56 @@
 #include "BitWriter.h"
 
 BitWriter::BitWriter(const std::string& filePath) {
-    // std::ios::binary is CRITICAL. Without it, the OS messes with your bytes.
     outFile.open(filePath, std::ios::binary);
     buffer = 0;
     bitCount = 0;
 }
 
 BitWriter::~BitWriter() {
-    flush(); // Make sure no bits are left behind
+    flush(); 
     if (outFile.is_open()) {
         outFile.close();
     }
 }
 
 void BitWriter::writeBit(int bit) {
-    // If the bit is '1', we turn on the specific bit in the byte.
-    // If it's '0', we leave it alone (it's already 0 initialized).
     if (bit == 1) {
-        // "7 - bitCount" means we fill from Left (MSB) to Right (LSB)
         buffer = buffer | (1 << (7 - bitCount));
     }
-    
     bitCount++;
 
-    // BUFFER FULL? WRITE IT!
     if (bitCount == 8) {
         outFile.put(buffer);
-        buffer = 0; // Reset
+        buffer = 0; 
         bitCount = 0;
     }
 }
 
 void BitWriter::writeCode(const std::string& code) {
     for (char c : code) {
-        if (c == '0') writeBit(0);
-        else writeBit(1);
+        writeBit(c == '1');
     }
 }
 
 void BitWriter::flush() {
-    // If there are leftover bits (e.g., 3 bits sitting in buffer)
     if (bitCount > 0) {
-        outFile.put(buffer); // The remaining slots are just 0s (padding)
+        outFile.put(buffer);
         buffer = 0;
         bitCount = 0;
     }
 }
 
-void BitWriter::writeHeader(const std::map<char, int>& frequencies) {
-    // 1. Write the NUMBER of unique characters (e.g., 5)
-    // We assume the map fits in a standard integer size
+void BitWriter::writeHeader(const std::unordered_map<char, int>& frequencies) {
+    // Write Magic Signature
+    outFile.write("HUFF", 4);
+
     size_t mapSize = frequencies.size();
     outFile.write(reinterpret_cast<const char*>(&mapSize), sizeof(mapSize));
 
-    // 2. Loop through the map and write: [Character] + [Frequency]
     for (const auto& entry : frequencies) {
         char character = entry.first;
         int frequency = entry.second;
-
-        // Write the character (1 byte)
         outFile.write(&character, sizeof(character));
-
-        // Write the frequency (4 bytes) - Raw Binary
         outFile.write(reinterpret_cast<const char*>(&frequency), sizeof(frequency));
     }
 }
