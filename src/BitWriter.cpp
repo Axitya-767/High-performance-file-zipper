@@ -40,7 +40,7 @@ void BitWriter::flush() {
     }
 }
 
-void BitWriter::writeHeader(const std::unordered_map<char, int>& frequencies) {
+void BitWriter::writeHeader(const std::map<char, int>& frequencies){
     // Write Magic Signature
     outFile.write("HUFF", 4);
 

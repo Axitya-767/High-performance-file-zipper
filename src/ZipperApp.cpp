@@ -72,6 +72,19 @@ void ZipperApp::compressTask(std::string inputPath, std::string outputDir) {
         
         FrequencyCounter counter;
         auto frequencies = counter.countFrequencies(inputPath);
+        
+            auto frequencies = counter.countFrequencies(inputPath);
+
+// SAFETY CHECK: If the file is empty, don't build a tree!
+    if (frequencies.empty()) {
+        std::lock_guard<std::mutex> lock(consoleMutex);
+        std::cout << "⚠️  Skipping empty file: " << filename << std::endl;
+        return; 
+    }
+
+    HuffmanTree tree;
+    tree.buildTree(frequencies);
+
         HuffmanTree tree;
         tree.buildTree(frequencies);
         tree.generateHuffmanCodes();

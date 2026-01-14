@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <string>
+#include<map>
 
 class BitWriter {
 private:
@@ -16,7 +17,9 @@ public:
     ~BitWriter();
 
     // MATCHED: Now uses unordered_map to match the .cpp
-    void writeHeader(const std::unordered_map<char, int>& frequencies);
+    #include <map>
+// ...
+    void writeHeader(const std::map<char, int>& frequencies);
     
     void writeBit(int bit);
     void writeCode(const std::string& code);
