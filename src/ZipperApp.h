@@ -1,27 +1,40 @@
-#pragma once
+#ifndef ZIPPERAPP_H
+#define ZIPPERAPP_H
+
+#include <QObject>
+#include <QString>
 #include <string>
 #include <vector>
 #include <filesystem>
 #include <mutex>
-#include <atomic>
 
 namespace fs = std::filesystem;
 
-class ZipperApp {
+class ZipperApp : public QObject {
+    Q_OBJECT
+
 public:
-    ZipperApp() : totalOriginalSize(0), totalCompressedSize(0), processedFiles(0) {}
-    void processDirectory(const std::string& inputDir, const std::string& outputDir, bool compressMode);
+    explicit ZipperApp(QObject *parent = nullptr) : QObject(parent) {}
+
+    // The new "One Go" function
+    void processOneGoCycle(const std::string& inputPath, const std::string& outputDir);
+
+signals:
+    void progressUpdated(int percent);
+    void statusChanged(QString message);
 
 private:
-    void compressTask(std::string inputPath, std::string outputDir);
-    void decompressTask(std::string inputPath, std::string outputDir);
-    
-    // ADD THESE TWO LINES TO FIX THE ERRORS:
-    std::string formatBytes(long long bytes);
-    void printReport(double durationSeconds);
+    // Updated to allow custom output names (like .new)
+    void compressTo(std::string inputPath, std::string outputPath);
+    void decompressTo(std::string inputPath, std::string outputPath);
 
+    void printReport(double durationSeconds);
+    std::string formatBytes(long long bytes);
+
+    long long totalOriginalSize = 0;
+    long long totalCompressedSize = 0;
+    int processedFiles = 0;
     static std::mutex consoleMutex;
-    std::atomic<long long> totalOriginalSize;
-    std::atomic<long long> totalCompressedSize;
-    std::atomic<int> processedFiles;
 };
+
+#endif

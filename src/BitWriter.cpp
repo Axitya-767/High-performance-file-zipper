@@ -40,17 +40,23 @@ void BitWriter::flush() {
     }
 }
 
-void BitWriter::writeHeader(const std::map<char, int>& frequencies){
-    // Write Magic Signature
-    outFile.write("HUFF", 4);
+// In Compressor.cpp (or BitWriter.cpp)
+void BitWriter::writeHeader(std::ofstream& outFile, const std::map<char, int>& frequencies) {
+    // 1. Write Magic Signature "HUFF" (0x46465548)
+    // This tells the decompressor: "Yes, this is a valid Huffman file"
+    int signature = 1179014472;
+    outFile.write(reinterpret_cast<const char*>(&signature), sizeof(int));
 
-    size_t mapSize = frequencies.size();
-    outFile.write(reinterpret_cast<const char*>(&mapSize), sizeof(mapSize));
+    // 2. Write Map Size (Always as 4-byte INT)
+    // We cast to int to prevent the "size_t" 8-byte error on Mac
+    int size = static_cast<int>(frequencies.size());
+    outFile.write(reinterpret_cast<const char*>(&size), sizeof(int));
 
-    for (const auto& entry : frequencies) {
-        char character = entry.first;
-        int frequency = entry.second;
-        outFile.write(&character, sizeof(character));
-        outFile.write(reinterpret_cast<const char*>(&frequency), sizeof(frequency));
+    // 3. Write Data
+    for (const auto& pair : frequencies) {
+        char ch = pair.first;
+        int freq = pair.second;
+        outFile.write(&ch, sizeof(char));
+        outFile.write(reinterpret_cast<const char*>(&freq), sizeof(int));
     }
 }

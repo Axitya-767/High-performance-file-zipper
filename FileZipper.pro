@@ -1,20 +1,32 @@
-QT += core concurrent
-CONFIG += c++17
-CONFIG -= app_bundle
+QT       += core gui widgets concurrent
+CONFIG   += c++17
 
-SOURCES += main.cpp \
-    src/BitWriter.cpp \
-    src/Decompressor.cpp \
+TARGET = FileZipper
+TEMPLATE = app
+
+# Tell the compiler where to look for your headers
+INCLUDEPATH += src
+
+# -------------------------------------------------
+# YOUR SOURCE FILES (Make sure these exist in 'src')
+# -------------------------------------------------
+SOURCES += \
+    main.cpp \
+    src/ZipperApp.cpp \
+    src/MainWindow.cpp \
     src/FrequencyCounter.cpp \
     src/HuffmanTree.cpp \
-    src/ZipperApp.cpp
+    src/BitWriter.cpp \
+    src/Decompressor.cpp
 
+# -------------------------------------------------
+# YOUR HEADER FILES
+# -------------------------------------------------
 HEADERS += \
-    src/BitWriter.h \
-    src/Decompressor.h \
+    src/ZipperApp.h \
+    src/MainWindow.h \
     src/FrequencyCounter.h \
     src/HuffmanNode.h \
     src/HuffmanTree.h \
-    src/ZipperApp.h
-
-INCLUDEPATH += src
+    src/BitWriter.h \
+    src/Decompressor.h
