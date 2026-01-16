@@ -1,3 +1,20 @@
-zipper
-.DS_Store
+# Exclude build artifacts and binary apps
+build/
+*.app/
 *.o
+Makefile
+moc_*.cpp
+
+# Exclude Qt Creator specific caches
+.qtc_clangd/
+*.user
+
+# Exclude large test data and cycle results
+data/
+archives/
+*.compressed
+*.new
+*_new.*
+
+# OS Specific
+.DS_Store
