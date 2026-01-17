@@ -14,25 +14,30 @@ class ZipperApp : public QObject {
     Q_OBJECT
 
 public:
+    // NEW: Define the modes
+    enum AppMode {
+        MODE_COMPRESS,
+        MODE_DECOMPRESS,
+        MODE_VERIFY // The "Check Integrity" cycle
+    };
+
     explicit ZipperApp(QObject *parent = nullptr) : QObject(parent) {}
-    void processOneGoCycle(const std::string& inputPath, const std::string& outputDir);
+
+    // UPDATE: Now accepts a 'mode' parameter
+    void processFile(const std::string& inputPath, const std::string& outputDir, AppMode mode);
 
 signals:
     void progressUpdated(int percent);
     void statusChanged(QString message);
 
 private:
-    // FIX 1: Explicitly declare this as BOOL
     bool compressTo(std::string inputPath, std::string outputPath);
     void decompressTo(std::string inputPath, std::string outputPath);
 
-    // Keep these to prevent linker errors
-    void printReport(double durationSeconds);
-    std::string formatBytes(long long bytes);
+    // Helpers
+    void printReport(double) {}
+    std::string formatBytes(long long) { return ""; }
 
-    long long totalOriginalSize = 0;
-    long long totalCompressedSize = 0;
-    int processedFiles = 0;
     static std::mutex consoleMutex;
 };
 

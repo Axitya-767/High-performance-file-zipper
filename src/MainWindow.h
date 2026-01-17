@@ -1,17 +1,18 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include <QMainWindow>   // Fixes 'Unknown type name QMainWindow'
-#include <QWidget>       // Fixes 'Unknown type name QWidget'
-#include <QLabel>        // Fixes 'Unknown type name QLabel'
-#include <QProgressBar>  // Fixes 'Unknown type name QProgressBar'
+#include <QMainWindow>
+#include <QWidget>
+#include <QLabel>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QDragEnterEvent>
 #include <QMimeData>
-#include <QDropEvent>    // Fixes 'Unknown type name QDropEvent'
+#include <QDropEvent>
 #include <QFileDialog>
+#include <QComboBox> // NEW INCLUDE
 #include "ZipperApp.h"
 
 class MainWindow : public QMainWindow {
@@ -26,6 +27,7 @@ protected:
 
 private:
     QLabel *titleLabel;
+    QComboBox *modeSelector; // NEW DROPDOWN
     QLabel *dropZone;
     QProgressBar *progressBar;
     QPushButton *fileBtn;
