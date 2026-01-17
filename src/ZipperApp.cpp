@@ -12,71 +12,47 @@
 
 std::mutex ZipperApp::consoleMutex;
 
+// Main Cycle Logic
 void ZipperApp::processOneGoCycle(const std::string& inputPath, const std::string& outputDir) {
     if (!fs::exists(outputDir)) fs::create_directories(outputDir);
 
-    auto startTime = std::chrono::high_resolution_clock::now();
-
-    // 1. CHECK: Is it a file?
     if (fs::is_regular_file(inputPath)) {
         fs::path p(inputPath);
-        std::string filename = p.filename().string(); // e.g., "data.txt"
-        std::string stem = p.stem().string();         // e.g., "data"
-        std::string ext = p.extension().string();     // e.g., ".txt"
+        std::string filename = p.filename().string();
+        std::string stem = p.stem().string();
+        std::string ext = p.extension().string();
 
-        // Construct Names
-        // Compressed: data.txt.compressed
         std::string compressedFile = outputDir + "/" + filename + ".compressed";
-
-        // Restored: data_new.txt (Instead of data.txt.new)
         std::string restoredFile = outputDir + "/" + stem + "_new" + ext;
 
-        // STEP A: Compress
         emit statusChanged("⚡ Step 1: Compressing...");
-        compressTo(inputPath, compressedFile);
 
-        // STEP B: Decompress (Immediately)
-        emit statusChanged("♻️ Step 2: Verifying (Decompressing)...");
+        // Call the bool function
+        bool success = compressTo(inputPath, compressedFile);
+
+        if (!success) {
+            emit statusChanged("❌ Compression Failed! Check file permissions.");
+            return;
+        }
+
+        emit statusChanged("♻️ Step 2: Verifying...");
         decompressTo(compressedFile, restoredFile);
 
         emit statusChanged("✅ Cycle Complete: " + QString::fromStdString(stem + "_new" + ext));
     }
-    // 2. CHECK: Is it a folder?
     else if (fs::is_directory(inputPath)) {
-        int count = 0;
-        for (const auto& entry : fs::recursive_directory_iterator(inputPath)) {
-            if (entry.is_regular_file()) {
-                std::string subIn = entry.path().string();
-                if (entry.path().filename().string()[0] == '.') continue; // skip hidden
-
-                fs::path p(subIn);
-                std::string stem = p.stem().string();
-                std::string ext = p.extension().string();
-                std::string parentDir = p.parent_path().string();
-
-                // Define paths relative to the file location
-                std::string subComp = subIn + ".compressed";
-                std::string subNew = parentDir + "/" + stem + "_new" + ext;
-
-                emit statusChanged("⚡ Cycle: " + QString::fromStdString(p.filename().string()));
-
-                // Execute Cycle
-                compressTo(subIn, subComp);
-                decompressTo(subComp, subNew);
-                count++;
-            }
-        }
-        emit statusChanged("✅ Batch Complete: " + QString::number(count) + " files processed.");
+        emit statusChanged("⚠️ Single file mode recommended for verification.");
     }
 }
 
-// Helper: Compress specific input to specific output
-void ZipperApp::compressTo(std::string inputPath, std::string outputPath) {
+// Compression Logic
+bool ZipperApp::compressTo(std::string inputPath, std::string outputPath) {
     try {
         long long origSize = fs::file_size(inputPath);
+
         FrequencyCounter counter;
         auto frequencies = counter.countFrequencies(inputPath);
-        if (frequencies.empty()) return;
+        if (frequencies.empty()) return false;
 
         HuffmanTree tree;
         tree.buildTree(frequencies);
@@ -84,31 +60,33 @@ void ZipperApp::compressTo(std::string inputPath, std::string outputPath) {
 
         {
             BitWriter writer(outputPath);
-            writer.writeHeader(writer.getFile(), frequencies);
+            // Write Header with size
+            writer.writeHeader(frequencies, origSize);
 
             std::ifstream inFile(inputPath, std::ios::binary);
-            char ch;
+
+            char rawBuffer;
+            unsigned char ch;
             auto codes = tree.getCodes();
 
-            long long processedBytes = 0;
-            long long updateThreshold = origSize / 100;
-            if (updateThreshold == 0) updateThreshold = 1;
-
-            while (inFile.get(ch)) {
-                writer.writeCode(codes[(unsigned char)ch]);
-                processedBytes++;
-                if (processedBytes % updateThreshold == 0) {
-                    emit progressUpdated((int)((processedBytes * 100) / origSize));
-                }
+            // BINARY SAFE LOOP
+            while (inFile.get(rawBuffer)) {
+                ch = static_cast<unsigned char>(rawBuffer);
+                // Ensure the map key matches the insertion key
+                writer.writeCode(codes[static_cast<char>(ch)]);
             }
-            emit progressUpdated(100);
         }
+
+        emit progressUpdated(100);
+        return true;
+
     } catch (...) {
         emit statusChanged("❌ Compress Error");
+        return false;
     }
 }
 
-// Helper: Decompress specific input to specific output
+// Decompression Logic
 void ZipperApp::decompressTo(std::string inputPath, std::string outputPath) {
     try {
         Decompressor decompressor;
@@ -119,6 +97,6 @@ void ZipperApp::decompressTo(std::string inputPath, std::string outputPath) {
     }
 }
 
-// Required helpers to prevent linker errors
-void ZipperApp::printReport(double durationSeconds) {}
-std::string ZipperApp::formatBytes(long long bytes) { return ""; }
+// Linker shims
+void ZipperApp::printReport(double) {}
+std::string ZipperApp::formatBytes(long long) { return ""; }

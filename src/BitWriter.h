@@ -1,29 +1,27 @@
-#ifndef BIT_WRITER_H
-#define BIT_WRITER_H
+#ifndef BITWRITER_H
+#define BITWRITER_H
 
-#include <unordered_map>
-#include <fstream>
 #include <string>
-#include<map>
+#include <fstream>
+#include <vector>
+#include <map>
 
 class BitWriter {
-private:
-    std::ofstream outFile;
-    unsigned char buffer; 
-    int bitCount;         
-
 public:
-    std::ofstream& getFile() { return outFile; }
-    BitWriter(const std::string& filePath);
+    BitWriter(const std::string& outputPath);
     ~BitWriter();
 
-    // MATCHED: Now uses unordered_map to match the .cpp
-    #include <map>
-// ...
-    void writeHeader(std::ofstream& outFile, const std::map<char, int>& frequencies);
-    
-    void writeBit(int bit);
+    // UPDATE: Now accepts originalSize
+    void writeHeader(const std::map<char, int>& frequencies, long long originalSize);
+
     void writeCode(const std::string& code);
+    std::string getFile() const { return outputPath; }
+
+private:
+    std::string outputPath;
+    std::ofstream outFile;
+    unsigned char currentByte;
+    int bitCount;
     void flush();
 };
 

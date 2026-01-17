@@ -15,8 +15,6 @@ class ZipperApp : public QObject {
 
 public:
     explicit ZipperApp(QObject *parent = nullptr) : QObject(parent) {}
-
-    // The new "One Go" function
     void processOneGoCycle(const std::string& inputPath, const std::string& outputDir);
 
 signals:
@@ -24,10 +22,11 @@ signals:
     void statusChanged(QString message);
 
 private:
-    // Updated to allow custom output names (like .new)
-    void compressTo(std::string inputPath, std::string outputPath);
+    // FIX 1: Explicitly declare this as BOOL
+    bool compressTo(std::string inputPath, std::string outputPath);
     void decompressTo(std::string inputPath, std::string outputPath);
 
+    // Keep these to prevent linker errors
     void printReport(double durationSeconds);
     std::string formatBytes(long long bytes);
 

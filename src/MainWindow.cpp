@@ -110,39 +110,28 @@ void MainWindow::setupStyle() {
 void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
-        dropZone->setStyleSheet(
-            "QLabel { border: 3px solid #007AFF; background-color: #202020; border-radius: 15px; color: #fff; font-size: 16px; font-weight: bold; }"
-            );
+        dropZone->setStyleSheet("border: 3px solid #007AFF; border-radius: 15px; color: white; background: #222;");
     }
 }
 
 void MainWindow::dropEvent(QDropEvent *event) {
-    // Restore original style
-    dropZone->setStyleSheet(
-        "QLabel { border: 3px dashed #555; border-radius: 15px; background-color: #333; color: #ccc; font-size: 16px; font-weight: bold; }"
-        );
+    dropZone->setStyleSheet("border: 3px dashed #555; border-radius: 15px; color: #ccc;");
 
     const QList<QUrl> urls = event->mimeData()->urls();
     if (urls.isEmpty()) return;
 
     QString path = urls.first().toLocalFile();
-    processInput(path);
+    if (!path.isEmpty()) processInput(path);
 }
 
 void MainWindow::processInput(const QString &path) {
-    std::string stdPath = path.toStdString();
-    QFileInfo fileInfo(path);
-    std::string outputDir = fileInfo.absolutePath().toStdString();
-
+    dropZone->setText("Processing...");
     progressBar->setValue(0);
-    dropZone->setText("⚡ Running Integrity Cycle...");
 
-    // Run the "One Go" Cycle
-    (void)QtConcurrent::run([=]() {
-        try {
-            engine.processOneGoCycle(stdPath, outputDir);
-        } catch (const std::exception &e) {
-            emit engine.statusChanged("❌ Error: " + QString::fromStdString(e.what()));
-        }
+    (void)QtConcurrent::run([this, path]() {
+        std::string stdPath = path.toStdString();
+        QFileInfo fi(path);
+        std::string outputDir = fi.absolutePath().toStdString();
+        engine.processOneGoCycle(stdPath, outputDir);
     });
 }

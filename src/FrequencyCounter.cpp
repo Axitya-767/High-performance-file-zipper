@@ -11,9 +11,12 @@ std::map<char, int> FrequencyCounter::countFrequencies(const std::string& filePa
         return freqMap;
     }
 
-    char ch;
-    while (inputFile.get(ch)) {
-        freqMap[ch]++;
+    char rawBuffer;
+    // FIX 1: Use 'inputFile' (not 'file')
+    while (inputFile.get(rawBuffer)) {
+        // FIX 2: Cast to unsigned char
+        // FIX 3: Use 'freqMap' (not 'frequencies')
+        freqMap[static_cast<unsigned char>(rawBuffer)]++;
     }
 
     inputFile.close();

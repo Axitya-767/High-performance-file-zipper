@@ -1,62 +1,54 @@
 #include "BitWriter.h"
+#include <stdexcept> // Needed for errors
 
-BitWriter::BitWriter(const std::string& filePath) {
-    outFile.open(filePath, std::ios::binary);
-    buffer = 0;
-    bitCount = 0;
+BitWriter::BitWriter(const std::string& path) : outputPath(path), currentByte(0), bitCount(0) {
+    outFile.open(path, std::ios::binary);
+
+    // CRITICAL FIX: Check if file actually opened!
+    if (!outFile.is_open()) {
+        throw std::runtime_error("Could not create output file: " + path);
+    }
 }
 
 BitWriter::~BitWriter() {
-    flush(); 
+    flush();
     if (outFile.is_open()) {
         outFile.close();
     }
 }
 
-void BitWriter::writeBit(int bit) {
-    if (bit == 1) {
-        buffer = buffer | (1 << (7 - bitCount));
-    }
-    bitCount++;
+void BitWriter::writeHeader(const std::map<char, int>& frequencies, long long originalSize) {
+    // 1. Write Original Size (8 bytes)
+    outFile.write(reinterpret_cast<const char*>(&originalSize), sizeof(long long));
 
-    if (bitCount == 8) {
-        outFile.put(buffer);
-        buffer = 0; 
-        bitCount = 0;
+    // 2. Write Map Size (4 bytes)
+    int mapSize = static_cast<int>(frequencies.size());
+    outFile.write(reinterpret_cast<const char*>(&mapSize), sizeof(int));
+
+    // 3. Write Map Data
+    for (const auto& pair : frequencies) {
+        outFile.put(pair.first);
+        int freq = pair.second;
+        outFile.write(reinterpret_cast<const char*>(&freq), sizeof(int));
     }
 }
 
 void BitWriter::writeCode(const std::string& code) {
-    for (char c : code) {
-        writeBit(c == '1');
+    for (char bit : code) {
+        if (bit == '1') {
+            currentByte |= (1 << (7 - bitCount));
+        }
+        bitCount++;
+        if (bitCount == 8) {
+            outFile.put(currentByte);
+            currentByte = 0;
+            bitCount = 0;
+        }
     }
 }
 
 void BitWriter::flush() {
     if (bitCount > 0) {
-        outFile.put(buffer);
-        buffer = 0;
-        bitCount = 0;
-    }
-}
-
-// In Compressor.cpp (or BitWriter.cpp)
-void BitWriter::writeHeader(std::ofstream& outFile, const std::map<char, int>& frequencies) {
-    // 1. Write Magic Signature "HUFF" (0x46465548)
-    // This tells the decompressor: "Yes, this is a valid Huffman file"
-    int signature = 1179014472;
-    outFile.write(reinterpret_cast<const char*>(&signature), sizeof(int));
-
-    // 2. Write Map Size (Always as 4-byte INT)
-    // We cast to int to prevent the "size_t" 8-byte error on Mac
-    int size = static_cast<int>(frequencies.size());
-    outFile.write(reinterpret_cast<const char*>(&size), sizeof(int));
-
-    // 3. Write Data
-    for (const auto& pair : frequencies) {
-        char ch = pair.first;
-        int freq = pair.second;
-        outFile.write(&ch, sizeof(char));
-        outFile.write(reinterpret_cast<const char*>(&freq), sizeof(int));
+        outFile.put(currentByte);
     }
 }
