@@ -3,39 +3,50 @@
 ![Language](https://img.shields.io/badge/language-C%2B%2B17-blue.svg)
 ![Framework](https://img.shields.io/badge/framework-Qt%206-green.svg)
 ![Concurrency](https://img.shields.io/badge/concurrency-QtConcurrent-purple.svg)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
-**FileZipper** is a high-performance, multi-threaded compression utility engineered to produce self-extracting executables. Built with **C++17** and **Qt 6**, it leverages **QtConcurrent** to utilize multi-core processing for non-blocking UI operations, ensuring the interface remains responsive even during heavy compression tasks.
+**FileZipper** is a high-performance compression utility offering a hybrid approach to file management. It features **Self-Extracting Archives** for single files and a robust **Decompression Mode** for handling complex directory structures. Built with **C++17** and **Qt 6**, it leverages multi-threading to ensure maximum performance.
 
-## 📖 Overview
+## 📖 Key Features
 
-Standard compression tools (like WinZip or 7-Zip) require the recipient to have compatible software installed. FileZipper solves this by encapsulating the compressed payload and a lightweight extraction engine (the "Stub") into a single executable binary.
+* **Self-Extracting Files:** Convert any single file into a standalone executable that extracts itself. No software needed for the recipient.
+* **Folder Archiving:** Compress entire directories into secure archives.
+* **Integrated Decompressor:** A dedicated mode within the app to restore folder hierarchies from archives.
+* **Multi-Core Processing:** Utilizes `QtConcurrent` to parallelize compression tasks, keeping the UI responsive.
 
-When executed, the archive acts as its own decompressor, reconstructing the original files with bit-perfect accuracy.
+## 🏗 System Architecture
 
-## 🏗 Architecture & Design
-
-The system is modularized into three core components, separating the UI thread from the worker threads.
+The application handles two distinct workflows depending on the input type:
 
 ### 1. The Encoder (Compression Engine)
-Located in `src/HuffmanTree.cpp` and `src/BitWriter.cpp`.
-* **Multi-Core Utilization:** Uses `QtConcurrent` to offload intensive frequency analysis and tree construction to worker threads, preventing the main GUI thread from freezing.
-* **Frequency Analysis:** Scans input data to calculate byte frequency ($O(N)$).
-* **Tree Construction:** Builds a canonical Huffman Tree to assign variable-length prefix codes.
-* **Bit Packing:** Compresses data bits into a dense binary stream with optimized padding.
+* **Core Logic:** Implements Canonical Huffman Coding ($O(N \log N)$ complexity).
+* **Parallelization:** Frequency analysis is offloaded to worker threads to prevent UI freezing.
+* **Bit-Level Optimization:** Custom `BitWriter` ensures efficient binary packing.
 
-### 2. The Injector (Stub Mechanism)
-Located in `src/ZipperApp.cpp` and `src/Utils.cpp`.
-* **Binary Injection:** The application reads a pre-compiled "Stub" binary.
-* **Payload Assembly:** It appends a unique delimiter (`|||HZ_DATA_START|||`) followed by the compressed Huffman bitstream directly to the end of the Stub.
-* **Result:** A hybrid binary that functions as a standard executable but carries a hidden payload.
+### 2. The Injector (Single File Mode)
+* For single files, FileZipper appends the compressed payload to a pre-compiled **Stub**.
+* **The Stub:** A lightweight executable that reads its own binary data (`argv[0]`) to self-extract.
 
-### 3. The Decoder (The Stub)
-Located in `tools/Stub.cpp`.
-* A minimal C++ runtime with **zero external dependencies**.
-* **Self-Reflection:** When executed, the Stub opens its own binary file (`argv[0]`) in read-mode.
-* **Seek & Extract:** It finds the magic marker, deserializes the Huffman Tree, and decodes the payload back to the original file.
+### 3. The Decompressor (Folder Mode)
+* Located in `src/Decompressor.cpp`.
+* **Archive Handling:** For folders, the app generates a custom archive format.
+* **Restoration:** The built-in Decompressor reads the header metadata to reconstruct the directory tree and place files in their correct paths.
+
+## 🛠 How to Use
+
+### Mode A: Single File (Self-Extracting)
+1.  Click **"Select File"**.
+2.  Choose your destination. The app creates a standalone `.command` (macOS) or `.exe` (Windows) file.
+3.  **To Extract:** The recipient simply double-clicks the file. It extracts automatically without needing FileZipper.
+
+### Mode B: Folders (Archive Mode)
+1.  Click **"Select Folder"**.
+2.  The app compresses the entire directory structure into an archive file.
+3.  **To Extract:**
+    * Open FileZipper.
+    * Switch to **Decompress Mode**.
+    * Select the archive file and click **Decompress**. The folder structure will be restored.
+
 
 ## 🛠 Tech Stack
 
