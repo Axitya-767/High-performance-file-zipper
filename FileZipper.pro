@@ -34,18 +34,3 @@ HEADERS += \
     src/Decompressor.h
 
 
-# --- AUTOMATION SCRIPT ---
-# This copies the tool we just created into the Mac App Bundle
-STUB_SOURCE = $$PWD/tools/stub_executable
-
-macx {
-    DEST_DIR = $$OUT_PWD/$${TARGET}.app/Contents/MacOS
-} else {
-    DEST_DIR = $$OUT_PWD
-}
-
-copy_stub.target = $$DEST_DIR/stub_executable
-copy_stub.depends = $$STUB_SOURCE
-copy_stub.commands = $(COPY) $$shell_path($$STUB_SOURCE) $$shell_path($$DEST_DIR)
-QMAKE_EXTRA_TARGETS += copy_stub
-PRE_TARGETDEPS += $$DEST_DIR/stub_executable
