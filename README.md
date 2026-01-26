@@ -2,46 +2,83 @@
 
 ![Language](https://img.shields.io/badge/language-C%2B%2B17-blue.svg)
 ![Framework](https://img.shields.io/badge/framework-Qt%206-green.svg)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
+![Concurrency](https://img.shields.io/badge/concurrency-QtConcurrent-purple.svg)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
 
-**FileZipper** is a high-performance, multithreaded file compression utility that generates **self-extracting executables**. Built with C++17 and the Qt 6 framework, it implements a custom Huffman Coding algorithm to provide lossless compression without requiring the recipient to have any special software installed.
+**FileZipper** is a high-performance, multi-threaded compression utility engineered to produce self-extracting executables. Built with **C++17** and **Qt 6**, it leverages **QtConcurrent** to utilize multi-core processing for non-blocking UI operations, ensuring the interface remains responsive even during heavy compression tasks.
 
 ## 📖 Overview
 
-Traditional compression tools (like zip/tar) require the end-user to have a compatible extractor. FileZipper solves this by bundling a lightweight **Decompression Stub** directly with the compressed payload.
+Standard compression tools (like WinZip or 7-Zip) require the recipient to have compatible software installed. FileZipper solves this by encapsulating the compressed payload and a lightweight extraction engine (the "Stub") into a single executable binary.
 
-When you compress a file with FileZipper, the output is not a `.zip` archive, but a **standalone executable** (e.g., `archive.app` or `archive.exe`). When the recipient runs this executable, it automatically reconstructs the original file.
+When executed, the archive acts as its own decompressor, reconstructing the original files with bit-perfect accuracy.
 
-## 🏗 Technical Architecture
+## 🏗 Architecture & Design
 
-The system is modularized into three core components, leveraging `QtConcurrent` for non-blocking UI operations.
+The system is modularized into three core components, separating the UI thread from the worker threads.
 
 ### 1. The Encoder (Compression Engine)
 Located in `src/HuffmanTree.cpp` and `src/BitWriter.cpp`.
-* **Frequency Analysis:** Scans the input file to build a frequency map of bytes ($O(N)$).
-* **Tree Construction:** Uses a priority queue to build a canonical Huffman Tree, assigning shorter binary prefixes to frequent characters.
-* **Bit Packing:** Compresses data bits into a dense binary stream, handling padding for byte alignment.
+* **Multi-Core Utilization:** Uses `QtConcurrent` to offload intensive frequency analysis and tree construction to worker threads, preventing the main GUI thread from freezing.
+* **Frequency Analysis:** Scans input data to calculate byte frequency ($O(N)$).
+* **Tree Construction:** Builds a canonical Huffman Tree to assign variable-length prefix codes.
+* **Bit Packing:** Compresses data bits into a dense binary stream with optimized padding.
 
 ### 2. The Injector (Stub Mechanism)
 Located in `src/ZipperApp.cpp` and `src/Utils.cpp`.
-* FileZipper maintains a pre-compiled binary called the **Stub**.
-* **Binary Injection:** When compressing, the app reads the `stub_executable`, writes it to a new file, appends a unique magic marker (`|||HZ_DATA_START|||`), and then streams the compressed Huffman payload immediately after it.
-* **Result:** A hybrid binary that is valid executable code at the start, and compressed data at the end.
+* **Binary Injection:** The application reads a pre-compiled "Stub" binary.
+* **Payload Assembly:** It appends a unique delimiter (`|||HZ_DATA_START|||`) followed by the compressed Huffman bitstream directly to the end of the Stub.
+* **Result:** A hybrid binary that functions as a standard executable but carries a hidden payload.
 
 ### 3. The Decoder (The Stub)
 Located in `tools/Stub.cpp`.
-* A lightweight C++ runtime with zero external dependencies.
+* A minimal C++ runtime with **zero external dependencies**.
 * **Self-Reflection:** When executed, the Stub opens its own binary file (`argv[0]`) in read-mode.
-* **Seek & Extract:** It scans for the magic marker, deserializes the Huffman Tree found in the header, and decodes the remaining bitstream back to the original file.
+* **Seek & Extract:** It finds the magic marker, deserializes the Huffman Tree, and decodes the payload back to the original file.
 
 ## 🛠 Tech Stack
 
 * **Language:** C++17
-* **GUI Framework:** Qt 6 (Widgets)
-* **Concurrency:** `QtConcurrent` (for background compression tasks)
-* **Build System:** qmake
+* **GUI Framework:** Qt 6.8 (Widgets)
+* **Concurrency:** `QtConcurrent` (Task-based parallelism)
+* **Build System:** QMake
 * **Deployment:** `macdeployqt` (macOS), `windeployqt` (Windows)
+
+## ⚡ Performance
+
+* **Time Complexity:** $O(N \log N)$ for tree construction.
+* **Space Complexity:** $O(K)$ constant space for the alphabet size (256 bytes).
+* **Threading:** Asynchronous execution model ensures 60fps UI performance during large file operations.
+
+## 🚀 Build Instructions
+
+### Prerequisites
+* **Qt 6.x** (Tested on 6.8)
+* **C++ Compiler** (Clang for macOS, MSVC/MinGW for Windows)
+
+### 1. Clone the Repository
+```bash
+git clone [https://github.com/Axitya-767/FileZipper.git](https://github.com/Axitya-767/FileZipper.git)
+cd FileZipper
+
+2. Compile the Stub
+The extraction engine must be compiled independently before building the main application.
+
+macOS / Linux:
+Bash
+g++ tools/Stub.cpp -O3 -o tools/stub_executable -std=c++17
+
+Windows:
+Bash
+g++ tools/Stub.cpp -O3 -o tools/stub_executable.exe -std=c++17
+
+3. Build the Main Application
+Open FileZipper.pro in Qt Creator.
+
+Configure the project for Release mode.
+
+Run qmake followed by Build (or click the Green Play button).
 
 ## 📂 Repository Structure
 
@@ -60,48 +97,13 @@ Located in `tools/Stub.cpp`.
 ├── FileZipper.pro             # QMake Project Configuration
 └── README.md                  # Project Documentation
 
-🚀 Build Instructions
-Prerequisites
-Qt Creator (with Qt 6.x installed)
-
-C++ Compiler (Clang, GCC, or MSVC)
-
-Step 1: Clone the Repository
-Bash
-git clone [https://github.com/Axitya-767/FileZipper.git](https://github.com/Axitya-767/FileZipper.git)
-cd FileZipper
-Step 2: Compile the Stub
-The "Stub" is the engine that gets attached to your compressed files. It must be built independently before running the main app.
-
-macOS / Linux:
-
-Bash
-g++ tools/Stub.cpp -O3 -o tools/stub_executable -std=c++17
-Windows (MinGW/MSVC):
-
-Bash
-g++ tools/Stub.cpp -O3 -o tools/stub_executable.exe -std=c++17
-Step 3: Build & Run the App
-Open FileZipper.pro in Qt Creator.
-
-When prompted to configure the project, select your preferred kit (e.g., Desktop Qt 6.8.0).
-
-Select Release configuration (bottom left monitor icon) for optimal performance.
-
-Click Run (Green Play Button).
-
 🤝 Contributing
-Contributions are welcome! Please ensure you follow the existing code style.
+Contributions to further optimize the Huffman tree generation or add support for directory compression are welcome.
 
-Fork the Project
-
-Create your Feature Branch (git checkout -b feature/AmazingFeature)
-
-Commit your Changes (git commit -m 'Add some AmazingFeature')
-
-Push to the Branch (git push origin feature/AmazingFeature)
-
-Open a Pull Request
+Fork the project.
+Create your feature branch (git checkout -b feature/Optimization).
+Commit your changes.
+Push to the branch and open a Pull Request.
 
 📄 License
 Distributed under the MIT License. See LICENSE for more information.
