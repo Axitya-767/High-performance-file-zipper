@@ -1,71 +1,81 @@
 #include "MainWindow.h"
+#include <QFileDialog>
 #include <QFileInfo>
 #include <QtConcurrent>
-#include <QDragEnterEvent>
-#include <QMimeData>
-#include <QDropEvent>
-#include <QFileDialog>
+#include <QApplication>
+#include <QMessageBox>
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
-    // 1. Window Config
-    setWindowTitle("8-Core Ultra Zipper");
-    setFixedSize(500, 500); // Made slightly taller for the new dropdown
+    setupUi();
+    setupStyle();
+}
+
+void MainWindow::setupUi() {
+    // Window Config
+    setWindowTitle("Huffman Archiver Pro");
+    setFixedSize(450, 520);
     setAcceptDrops(true);
 
-    // 2. Main Layout
+    // Central Widget
     auto *centralWidget = new QWidget(this);
     auto *mainLayout = new QVBoxLayout(centralWidget);
-    mainLayout->setSpacing(15);
-    mainLayout->setContentsMargins(30, 30, 30, 30);
+    mainLayout->setSpacing(20);
+    mainLayout->setContentsMargins(40, 40, 40, 40);
 
-    // 3. UI Elements
-    titleLabel = new QLabel("8-CORE COMPRESSOR", this);
+    // Title
+    titleLabel = new QLabel("HUFFMAN ARCHIVER", this);
     titleLabel->setAlignment(Qt::AlignCenter);
-    titleLabel->setFixedHeight(30);
 
-    // NEW: Mode Selector Dropdown
+    // Mode Selector (Clean Text)
     modeSelector = new QComboBox(this);
-    modeSelector->addItem("📦 Compress File (Save Space)");
-    modeSelector->addItem("📂 Decompress File (Restore)");
-    modeSelector->addItem("🛡️ Verify Integrity (Debug Mode)");
+    modeSelector->addItem("Compression Mode (Default)");
+    modeSelector->addItem("Decompression Mode");
     modeSelector->setCursor(Qt::PointingHandCursor);
-    modeSelector->setFixedHeight(35);
+    modeSelector->setFixedHeight(40);
 
-    dropZone = new QLabel("\nDrop File Here\n", this);
+    // Drop Zone
+    dropZone = new QLabel("Drag and drop files here", this);
     dropZone->setAlignment(Qt::AlignCenter);
-    dropZone->setMinimumHeight(150);
+    dropZone->setMinimumHeight(160);
 
+    // Progress Bar
     progressBar = new QProgressBar(this);
     progressBar->setRange(0, 100);
     progressBar->setValue(0);
-    progressBar->setTextVisible(true);
-    progressBar->setFixedHeight(25);
+    progressBar->setTextVisible(false); // Clean look
+    progressBar->setFixedHeight(6);     // Slim, modern bar
 
+    // Buttons
     auto *btnLayout = new QHBoxLayout();
-    fileBtn = new QPushButton("📄 Pick File...", this);
-    folderBtn = new QPushButton("📂 Pick Folder...", this);
+    btnLayout->setSpacing(15);
+
+    fileBtn = new QPushButton("Select File", this);
+    folderBtn = new QPushButton("Select Folder", this);
+
+    fileBtn->setFixedHeight(45);
+    folderBtn->setFixedHeight(45);
     fileBtn->setCursor(Qt::PointingHandCursor);
     folderBtn->setCursor(Qt::PointingHandCursor);
-    fileBtn->setFixedHeight(40);
-    folderBtn->setFixedHeight(40);
 
     btnLayout->addWidget(fileBtn);
     btnLayout->addWidget(folderBtn);
 
-    // 4. Add to Layout
+    // Status Footer
+    statusLabel = new QLabel("Ready", this);
+    statusLabel->setAlignment(Qt::AlignCenter);
+    statusLabel->setStyleSheet("color: #666; font-size: 12px;");
+
+    // Add to Layout
     mainLayout->addWidget(titleLabel);
-    mainLayout->addWidget(modeSelector); // Add Dropdown
+    mainLayout->addWidget(modeSelector);
     mainLayout->addWidget(dropZone);
-    mainLayout->addWidget(progressBar);
     mainLayout->addLayout(btnLayout);
+    mainLayout->addWidget(progressBar);
+    mainLayout->addWidget(statusLabel);
 
     setCentralWidget(centralWidget);
-    setupStyle();
 
-    // 5. Connect Signals
-    connect(&engine, &ZipperApp::progressUpdated, progressBar, &QProgressBar::setValue);
-    connect(&engine, &ZipperApp::statusChanged, dropZone, &QLabel::setText);
-
+    // Connections
     connect(fileBtn, &QPushButton::clicked, this, [this]() {
         QString path = QFileDialog::getOpenFileName(this, "Select File");
         if (!path.isEmpty()) processInput(path);
@@ -80,119 +90,116 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
     if (event->mimeData()->hasUrls()) {
         event->acceptProposedAction();
-        dropZone->setStyleSheet("QLabel { border: 3px solid #007AFF; background-color: #202020; border-radius: 15px; color: #fff; font-size: 16px; font-weight: bold; }");
+        dropZone->setStyleSheet("QLabel { border: 2px solid #007AFF; background-color: #1a1a1a; border-radius: 8px; color: #fff; }");
+        dropZone->setText("Release to Process");
     }
 }
 
 void MainWindow::dropEvent(QDropEvent *event) {
-    setupStyle(); // Restore style
+    setupStyle(); // Reset style
     const QList<QUrl> urls = event->mimeData()->urls();
     if (urls.isEmpty()) return;
+
     QString path = urls.first().toLocalFile();
     if (!path.isEmpty()) processInput(path);
 }
 
-void MainWindow::processInput(const QString &path) {
-    dropZone->setText("Processing...");
-    progressBar->setValue(0);
+void MainWindow::processInput(const QString &inputPath) {
+    setBusyState(true);
 
-    // GET SELECTED MODE
-    int index = modeSelector->currentIndex();
-    ZipperApp::AppMode mode = ZipperApp::MODE_COMPRESS;
-    if (index == 1) mode = ZipperApp::MODE_DECOMPRESS;
-    if (index == 2) mode = ZipperApp::MODE_VERIFY;
+    int modeIndex = modeSelector->currentIndex();
+    bool isCompressing = (modeIndex == 0);
 
-    (void)QtConcurrent::run([this, path, mode]() {
-        std::string stdPath = path.toStdString();
-        QFileInfo fi(path);
-        std::string outputDir = fi.absolutePath().toStdString();
+    // Run heavy lifting in background
+    QFuture<void> future = QtConcurrent::run([this, inputPath, isCompressing]() {
+        std::string stdInPath = inputPath.toStdString();
 
-        // Pass the mode to the engine
-        engine.processFile(stdPath, outputDir, mode);
+        // 1. Get clean output name (Now returns .hz file path)
+        std::string stdOutPath = getSmartOutputPath(stdInPath, isCompressing);
+
+        // 2. Call Engine
+        // IMPORTANT: Your compressor must write to this FILE path, not create a folder.
+        ZipperApp::AppMode mode = isCompressing ? ZipperApp::MODE_COMPRESS : ZipperApp::MODE_DECOMPRESS;
+        engine.processFile(stdInPath, stdOutPath, mode);
+
+        // 3. Create SFX (Only if compressing)
+        if (isCompressing) {
+            std::string stubPath = QCoreApplication::applicationDirPath().toStdString() + "/stub_executable";
+            createSFX(stdOutPath, stubPath);
+        }
     });
+
+    // Watcher for completion
+    auto *watcher = new QFutureWatcher<void>(this);
+    connect(watcher, &QFutureWatcher<void>::finished, this, [this, watcher]() {
+        setBusyState(false);
+
+        // --- SUCCESS POPUP WITH GREEN TICK ---
+        QMessageBox msgBox(this);
+        msgBox.setWindowTitle("Success");
+        msgBox.setText("Operation finished successfully.");
+
+        // Pull the standard "Apply" icon (Green Tick)
+        QIcon checkIcon = QApplication::style()->standardIcon(QStyle::SP_DialogApplyButton);
+        msgBox.setIconPixmap(checkIcon.pixmap(64, 64));
+
+        msgBox.setStandardButtons(QMessageBox::Ok);
+        msgBox.exec();
+        // -------------------------------------
+
+        watcher->deleteLater();
+    });
+    watcher->setFuture(future);
+}
+void MainWindow::setBusyState(bool isBusy) {
+    fileBtn->setEnabled(!isBusy);
+    folderBtn->setEnabled(!isBusy);
+    modeSelector->setEnabled(!isBusy);
+
+    if (isBusy) {
+        // "Indeterminate" mode makes the bar bounce back and forth
+        progressBar->setRange(0, 0);
+        dropZone->setText("Processing...");
+        statusLabel->setText("Please wait...");
+    } else {
+        progressBar->setRange(0, 100);
+        progressBar->setValue(100);
+        dropZone->setText("Drag and drop files here");
+        statusLabel->setText("Ready");
+        setupStyle(); // Restore clean looks
+    }
 }
 
 void MainWindow::setupStyle() {
-    // 1. Global Dark Theme
-    setStyleSheet("QMainWindow { background-color: #1e1e1e; }");
+    // Professional Dark Theme (CSS-like)
+    setStyleSheet("QMainWindow { background-color: #121212; }");
 
-    // 2. Title Styling
-    titleLabel->setStyleSheet("color: #ffffff; font-size: 18px; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px;");
+    titleLabel->setStyleSheet("color: #e0e0e0; font-size: 16px; font-weight: 600; letter-spacing: 1px; margin-bottom: 5px;");
 
-    // 3. Dropdown Styling (The "Arrow" Fix)
+    // Modern Flat Dropdown
     modeSelector->setStyleSheet(
-        "QComboBox {"
-        "   background-color: #333;"
-        "   color: white;"
-        "   border: 1px solid #555;"
-        "   border-radius: 6px;"
-        "   padding: 6px 15px;"
-        "   font-size: 14px;"
-        "}"
-        "QComboBox::drop-down {"
-        "   subcontrol-origin: padding;"
-        "   subcontrol-position: top right;"
-        "   width: 30px;"
-        "   border-left-width: 1px;"
-        "   border-left-color: #555;"
-        "   border-left-style: solid;"
-        "   border-top-right-radius: 6px;"
-        "   border-bottom-right-radius: 6px;"
-        "   background: #444;" // Slightly lighter button for the arrow area
-        "}"
-        "QComboBox::down-arrow {"
-        "   width: 0;"
-        "   height: 0;"
-        "   border-left: 6px solid transparent;"
-        "   border-right: 6px solid transparent;"
-        "   border-top: 8px solid white;" // This draws the inverted triangle (v)
-        "   margin-right: 2px;"
-        "}"
+        "QComboBox { background-color: #1e1e1e; color: #ddd; border: 1px solid #333; border-radius: 6px; padding: 5px 10px; font-size: 13px; }"
+        "QComboBox::drop-down { border: none; width: 30px; }"
+        "QComboBox::down-arrow { image: none; border: none; border-top: 5px solid #888; border-left: 5px solid transparent; border-right: 5px solid transparent; margin-right: 8px; }"
         );
 
-    // 4. Drop Zone Styling
+    // Dashed Drop Zone
     dropZone->setStyleSheet(
-        "QLabel { "
-        "   border: 2px dashed #666; "
-        "   border-radius: 12px; "
-        "   background-color: #262626; "
-        "   color: #aaa; "
-        "   font-size: 16px; "
-        "   font-weight: bold; "
-        "}"
+        "QLabel { border: 2px dashed #444; border-radius: 8px; background-color: #181818; color: #888; font-size: 14px; }"
         );
 
-    // 5. Progress Bar Styling
+    // Slim Progress Bar
     progressBar->setStyleSheet(
-        "QProgressBar { "
-        "   border: 0px; "
-        "   border-radius: 4px; "
-        "   text-align: center; "
-        "   color: white; "
-        "   background-color: #2d2d2d; "
-        "}"
-        "QProgressBar::chunk { "
-        "   background-color: #007AFF; "
-        "   border-radius: 4px; "
-        "}"
+        "QProgressBar { border: none; background-color: #222; border-radius: 3px; }"
+        "QProgressBar::chunk { background-color: #007AFF; border-radius: 3px; }"
         );
 
-    // 6. Button Styling
+    // Flat Buttons
     QString btnStyle =
-        "QPushButton { "
-        "   background-color: #3a3a3a; "
-        "   color: white; "
-        "   border: 1px solid #555; "
-        "   border-radius: 6px; "
-        "   font-size: 14px; "
-        "   font-weight: 500;"
-        "}"
-        "QPushButton:hover { "
-        "   background-color: #4a4a4a; "
-        "   border: 1px solid #007AFF; "
-        "}";
+        "QPushButton { background-color: #252525; color: #ddd; border: 1px solid #333; border-radius: 6px; font-size: 13px; font-weight: 500; }"
+        "QPushButton:hover { background-color: #333; border-color: #555; }"
+        "QPushButton:pressed { background-color: #007AFF; border-color: #007AFF; color: white; }";
 
     fileBtn->setStyleSheet(btnStyle);
     folderBtn->setStyleSheet(btnStyle);
 }
-

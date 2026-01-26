@@ -6,80 +6,127 @@
 #include "BitWriter.h"
 #include "Decompressor.h"
 #include <iostream>
-#include <chrono>
-#include <iomanip>
-#include <sstream>
+#include <vector>
+#include <filesystem>
+#include <fstream>
+
+namespace fs = std::filesystem;
 
 std::mutex ZipperApp::consoleMutex;
 
-void ZipperApp::processFile(const std::string& inputPath, const std::string& outputDir, AppMode mode) {
-    if (!fs::exists(outputDir)) fs::create_directories(outputDir);
+void ZipperApp::processFile(const std::string& inputPath, const std::string& outputPath, AppMode mode) {
 
-    fs::path p(inputPath);
-    std::string filename = p.filename().string();
-    std::string stem = p.stem().string();      // e.g. "image.png" (if file is image.png.compressed)
-    std::string ext = p.extension().string();  // e.g. ".compressed"
+    // ---------------------------------------------------------
+    // CASE A: FOLDER INPUT (Batch Processing)
+    // ---------------------------------------------------------
+    // If user drops a folder, we compress every file inside it individually.
+    if (fs::is_directory(inputPath)) {
 
-    // MODE 1: COMPRESS
-    if (mode == MODE_COMPRESS) {
-        std::string outName = outputDir + "/" + filename + ".compressed";
-        emit statusChanged("📦 Compressing: " + QString::fromStdString(filename));
+        // Ensure the container folder exists (e.g., "MyFolder_PROCESSED")
+        if (!fs::exists(outputPath)) fs::create_directories(outputPath);
 
-        if (compressTo(inputPath, outName)) {
-            emit statusChanged("✅ Saved: " + QString::fromStdString(filename + ".compressed"));
-        }
-    }
-    // MODE 2: DECOMPRESS (The Fix)
-    else if (mode == MODE_DECOMPRESS) {
-        std::string finalName;
+        emit statusChanged("🚀 Scanning Folder...");
 
-        // Logic: Try to reconstruct the original name safely
-        if (ext == ".compressed") {
-            // Input: "Report.pdf.compressed" -> stem is "Report.pdf"
-            fs::path innerPath(stem);
-
-            // If stem is "Report.pdf", we want "Report_restored.pdf"
-            if (innerPath.has_extension()) {
-                finalName = innerPath.stem().string() + "_restored" + innerPath.extension().string();
+        std::vector<std::string> allFiles;
+        try {
+            // Recursive scan
+            for (const auto& entry : fs::recursive_directory_iterator(inputPath)) {
+                if (entry.is_regular_file()) {
+                    if (entry.path().filename().string()[0] == '.') continue; // Skip hidden
+                    allFiles.push_back(entry.path().string());
+                }
             }
-            // If stem is just "Data", we want "Data_restored"
-            else {
-                finalName = stem + "_restored";
-            }
-        } else {
-            // Input: "Archive.zip" -> "Archive_restored.zip"
-            finalName = stem + "_restored" + ext;
-        }
-
-        std::string outName = outputDir + "/" + finalName;
-        emit statusChanged("📂 Decompressing to: " + QString::fromStdString(finalName));
-
-        decompressTo(inputPath, outName);
-        emit statusChanged("✅ Success! Created: " + QString::fromStdString(finalName));
-    }
-    // MODE 3: VERIFY INTEGRITY
-    else if (mode == MODE_VERIFY) {
-        std::string compressedFile = outputDir + "/" + filename + ".compressed";
-        // Use strict naming for verification too
-        std::string restoredFile = outputDir + "/" + stem + "_verified" + ext;
-
-        emit statusChanged("⚡ Step 1: Compressing...");
-        if (!compressTo(inputPath, compressedFile)) {
-            emit statusChanged("❌ Compression Failed");
+        } catch (...) {
+            emit statusChanged("❌ Error reading folder permissions.");
             return;
         }
 
-        emit statusChanged("♻️ Step 2: Verifying...");
-        decompressTo(compressedFile, restoredFile);
-        emit statusChanged("✅ Integrity Check Passed. Files match.");
+        if (allFiles.empty()) {
+            emit statusChanged("⚠️ Folder is empty.");
+            return;
+        }
+
+        emit statusChanged("⚡ Engaging Cores for " + QString::number(allFiles.size()) + " files...");
+
+        // Parallel Batch Processing
+        QtConcurrent::blockingMap(allFiles, [this, inputPath, outputPath, mode](const std::string& subFile) {
+            // Calculate relative path to maintain structure
+            // e.g. Input/Sub/File.txt -> Output/Sub/File.hz
+            fs::path src(subFile);
+            fs::path base(inputPath);
+            fs::path relative = fs::relative(src, base);
+
+            fs::path dest = fs::path(outputPath) / relative;
+
+            // Adjust extension based on mode
+            if (mode == MODE_COMPRESS) {
+                dest.replace_extension(src.extension().string() + ".hz");
+            } else if (mode == MODE_DECOMPRESS) {
+                // Remove .hz if present
+                std::string stem = dest.stem().string();
+                if (dest.extension() == ".hz") dest.replace_filename(stem);
+            }
+
+            // Recursive call to single file logic
+            this->processFile(subFile, dest.string(), mode);
+        });
+
+        emit statusChanged("✅ Batch Complete.");
+        return;
+    }
+
+    // ---------------------------------------------------------
+    // CASE B: SINGLE FILE INPUT (The Fix)
+    // ---------------------------------------------------------
+    // This creates the actual binary file that SFX needs.
+
+    fs::path inP(inputPath);
+    fs::path outP(outputPath);
+
+    // Ensure the PARENT directory exists, but DO NOT make the filename a folder
+    if (!fs::exists(outP.parent_path())) {
+        fs::create_directories(outP.parent_path());
+    }
+
+    // MODE 1: COMPRESS
+    if (mode == MODE_COMPRESS) {
+        // Prevent re-compressing .hz files
+        if (inP.extension() == ".hz") return;
+
+        // Call the compressor
+        if (compressTo(inputPath, outputPath)) {
+            emit statusChanged("📦 Compressed: " + QString::fromStdString(inP.filename().string()));
+        } else {
+            emit statusChanged("❌ Failed: " + QString::fromStdString(inP.filename().string()));
+        }
+    }
+    // MODE 2: DECOMPRESS (Manual)
+    else if (mode == MODE_DECOMPRESS) {
+        decompressTo(inputPath, outputPath);
+        emit statusChanged("📂 Restored: " + QString::fromStdString(outP.filename().string()));
+    }
+    // MODE 3: VERIFY
+    else if (mode == MODE_VERIFY) {
+        if (inP.extension() != ".hz") return;
+
+        std::string tempCheck = outputPath + ".check";
+        decompressTo(inputPath, tempCheck);
+
+        // If successful, remove temp
+        if (fs::exists(tempCheck)) {
+            fs::remove(tempCheck);
+            emit statusChanged("✅ Verified Integrity: " + QString::fromStdString(inP.filename().string()));
+        } else {
+            emit statusChanged("⚠️ Integrity Check Failed");
+        }
     }
 }
 
-// --- KEEP YOUR EXISTING COMPRESS/DECOMPRESS LOGIC BELOW ---
-// (Paste the bool compressTo and void decompressTo functions here)
-
+// --- CORE COMPRESSION LOGIC ---
 bool ZipperApp::compressTo(std::string inputPath, std::string outputPath) {
     try {
+        std::ios::sync_with_stdio(false); // Speed boost
+
         long long origSize = fs::file_size(inputPath);
         FrequencyCounter counter;
         auto frequencies = counter.countFrequencies(inputPath);
@@ -89,34 +136,37 @@ bool ZipperApp::compressTo(std::string inputPath, std::string outputPath) {
         tree.buildTree(frequencies);
         tree.generateHuffmanCodes();
 
-        {
-            BitWriter writer(outputPath);
-            writer.writeHeader(frequencies, origSize);
+        // WRITING TO FILE STREAM DIRECTLY (Fixes 0-byte bug)
+        BitWriter writer(outputPath);
+        writer.writeHeader(frequencies, origSize);
 
-            std::ifstream inFile(inputPath, std::ios::binary);
-            char rawBuffer;
-            unsigned char ch;
-            auto codes = tree.getCodes();
+        std::ifstream inFile(inputPath, std::ios::binary);
+        if (!inFile) return false;
 
-            while (inFile.get(rawBuffer)) {
-                ch = static_cast<unsigned char>(rawBuffer);
+        const size_t BUFFER_SIZE = 128 * 1024; // 128KB Buffer
+        std::vector<char> buffer(BUFFER_SIZE);
+        auto codes = tree.getCodes();
+
+        while (inFile.read(buffer.data(), BUFFER_SIZE) || inFile.gcount() > 0) {
+            std::streamsize bytesRead = inFile.gcount();
+            for (std::streamsize i = 0; i < bytesRead; ++i) {
+                unsigned char ch = static_cast<unsigned char>(buffer[i]);
                 writer.writeCode(codes[ch]);
             }
         }
-        emit progressUpdated(100);
         return true;
-    } catch (...) {
-        emit statusChanged("❌ Compress Error");
+    } catch (const std::exception& e) {
+        std::cerr << "Compression Error: " << e.what() << std::endl;
         return false;
     }
 }
 
+// --- CORE DECOMPRESSION LOGIC ---
 void ZipperApp::decompressTo(std::string inputPath, std::string outputPath) {
     try {
         Decompressor decompressor;
         decompressor.decompressFile(inputPath, outputPath);
-        emit progressUpdated(100);
     } catch (...) {
-        emit statusChanged("❌ Decompress Error");
+        std::cerr << "Decompression Error" << std::endl;
     }
 }

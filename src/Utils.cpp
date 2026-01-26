@@ -5,6 +5,7 @@
 
 namespace fs = std::filesystem;
 
+// Helper to handle paths cleanly
 std::string getSmartOutputPath(const std::string& inputPathStr, bool isCompressing) {
     fs::path inputPath(inputPathStr);
     std::string fullName = inputPath.filename().string();
@@ -16,10 +17,9 @@ std::string getSmartOutputPath(const std::string& inputPathStr, bool isCompressi
 
 void createSFX(const std::string& hzFilePath, const std::string& stubPath) {
     fs::path hzPath(hzFilePath);
-    
-    // Naming: "Report.pdf" -> "Report.pdf_Compressed.command"
-    // We KEEP .command so it runs, but the Stub will hide it later.
-    std::string baseName = hzPath.stem().string(); 
+
+    // Naming: "File.pdf.hz" -> "File.pdf_Compressed.command"
+    std::string baseName = hzPath.stem().string();
     std::string finalExeName = hzPath.parent_path().string() + "/" + baseName + "_Compressed.command";
 
     if (!fs::exists(stubPath)) {
@@ -31,21 +31,26 @@ void createSFX(const std::string& hzFilePath, const std::string& stubPath) {
     std::ifstream dataIn(hzFilePath, std::ios::binary);
     std::ofstream sfxOut(finalExeName, std::ios::binary);
 
-    // 1. Write the Stub Code
+    // 1. Write the Stub Executable
     sfxOut << stubIn.rdbuf();
 
-    // 2. Write the Unique Marker (NO Newlines, just the tag)
-    std::string marker = "<||HZ||>"; 
+    // 2. Write the Marker
+    // This separates code from data. Must match Stub.cpp exactly.
+    std::string marker = "|||HZ_DATA_START|||";
     sfxOut.write(marker.c_str(), marker.size());
 
     // 3. Write the Compressed Data
+    // Note: dataIn already starts with the correct Header (Size + Map)
+    // because BitWriter wrote it that way. We just copy it.
     sfxOut << dataIn.rdbuf();
 
     sfxOut.close();
-    
-    // Permissions
+
+    // Make executable
     fs::permissions(finalExeName, fs::perms::owner_all | fs::perms::group_exec | fs::perms::others_exec);
+
+    // Cleanup the .hz file
     fs::remove(hzFilePath);
-    
-    std::cout << "Created: " << finalExeName << std::endl;
+
+    std::cout << "Created SFX: " << finalExeName << std::endl;
 }

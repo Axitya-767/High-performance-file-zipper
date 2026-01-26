@@ -14,16 +14,16 @@ class ZipperApp : public QObject {
     Q_OBJECT
 
 public:
-    // NEW: Define the modes
+    explicit ZipperApp(QObject *parent = nullptr) : QObject(parent) {}
+
+    // 1. Define Modes
     enum AppMode {
         MODE_COMPRESS,
         MODE_DECOMPRESS,
-        MODE_VERIFY // The "Check Integrity" cycle
+        MODE_VERIFY
     };
 
-    explicit ZipperApp(QObject *parent = nullptr) : QObject(parent) {}
-
-    // UPDATE: Now accepts a 'mode' parameter
+    // 2. Declare the main processor
     void processFile(const std::string& inputPath, const std::string& outputDir, AppMode mode);
 
 signals:
