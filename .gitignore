@@ -1,20 +1,60 @@
-# Exclude build artifacts and binary apps
-build/
-*.app/
+# -----------------------------
+# 1. C++ & Compilation Artifacts
+# -----------------------------
 *.o
-Makefile
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# -----------------------------
+# 2. Executables (The most important part for you)
+# -----------------------------
+*.exe
+*.app/
+*.dmg
+
+# Explicitly ignore your specific tools so they never get committed
+/zipper
+/stub_executable
+/FileZipper
+
+# -----------------------------
+# 3. Qt Framework Generated Files
+# -----------------------------
+Makefile*
+*.pro.user
+*.pro.user.*
+.qmake.stash
 moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*.qmlc
+*.jsc
 
-# Exclude Qt Creator specific caches
-.qtc_clangd/
-*.user
+# -----------------------------
+# 4. Build Directories
+# -----------------------------
+build/
+release/
+debug/
+bin/
 
-# Exclude large test data and cycle results
+# -----------------------------
+# 5. Editor & OS Clutter
+# -----------------------------
+.DS_Store
+.vscode/
+.idea/
+*.autosave
+
+# -----------------------------
+# 6. Project Specific Data (Large files)
+# -----------------------------
 data/
 archives/
 *.compressed
 *.new
 *_new.*
-
-# OS Specific
-.DS_Store
